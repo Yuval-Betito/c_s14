@@ -139,7 +139,7 @@ EMAIL_HOST_PASSWORD = 'your_password'  # החלף עם הסיסמא שלך
 DEFAULT_FROM_EMAIL = 'your_email@example.com'
 
 # Custom user model
-AUTH_USER_MODEL = 'users.MyUser'
+AUTH_USER_MODEL = 'users.User'
 
 # Security settings
 SECURE_BROWSER_XSS_FILTER = True
