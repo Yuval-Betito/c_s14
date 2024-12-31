@@ -1,35 +1,50 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 import os
 import hmac
 import hashlib
 from django.core.validators import RegexValidator
 
 
-
 class UserManager(BaseUserManager):
-    def create_user(self, username, email, password=None):
+    def create_user(self, username, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Users must have an email address")
+        if not username:
+            raise ValueError("Users must have a username")
         email = self.normalize_email(email)
-        user = self.model(username=username, email=email)
+        user = self.model(username=username, email=email, **extra_fields)
         if password:
             user.set_password(password)  # Use the customized password hashing
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email, password):
-        user = self.create_user(username, email, password)
-        user.is_admin = True
-        user.save(using=self._db)
-        return user
+    def create_superuser(self, username, email, password, **extra_fields):
+        extra_fields.setdefault('is_admin', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_staff', True)
+
+        if extra_fields.get('is_admin') is not True:
+            raise ValueError('Superuser must have is_admin=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+
+        return self.create_user(username, email, password, **extra_fields)
 
 
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=False)  # Required for admin access
+
+    # Fields for password security
+    password_salt = models.CharField(max_length=32, blank=True, null=True)
+    password_hash = models.CharField(max_length=64, blank=True, null=True)
+    reset_token = models.CharField(max_length=40, blank=True, null=True)
 
     objects = UserManager()
 
@@ -57,13 +72,22 @@ class User(AbstractBaseUser):
     def __str__(self):
         return self.username
 
+
 class Customer(models.Model):
-    firstname = models.CharField(max_length=50, unique=True)
-    lastname = models.CharField(max_length=50, unique=True)
+    firstname = models.CharField(max_length=50)
+    lastname = models.CharField(max_length=50)
     customer_id = models.CharField(max_length=10, unique=True)
     email = models.EmailField(max_length=100, unique=True)
-    phone_number = models.CharField(max_length=10)
+    phone_number = models.CharField(
+        max_length=10,
+        validators=[
+            RegexValidator(
+                regex=r'^\d{10}$',
+                message='Phone number must be 10 digits',
+                code='invalid_phone'
+            )
+        ]
+    )
 
-    objects = UserManager()
-    REQUIRED_FIELDS = ['firstname','lastname','customer_id','email','phone']
-
+    def __str__(self):
+        return f"{self.firstname} {self.lastname} ({self.customer_id})"
